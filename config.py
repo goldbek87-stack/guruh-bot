@@ -62,4 +62,4 @@ PAYMENT_BONUS_MESSAGES = 20
 #
 # Qiymatini bilish uchun: botni guruhga admin qilib qo'shgach, guruh ichida
 # /guruh_id buyrug'ini yozing - bot sizga shu yerga qo'yiladigan raqamni beradi.
-TARGET_GROUP_ID = 0  # <- guruh_id buyrug'i chiqargan raqamni shu yerga qo'ying
+TARGET_GROUP_ID = -1002957575934  # <- guruh_id buyrug'i chiqargan raqamni shu yerga qo'ying
