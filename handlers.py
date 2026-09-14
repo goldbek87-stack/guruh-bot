@@ -8,6 +8,7 @@ odatda shu faylga yangi funksiya yozib, bot.py da ro'yxatdan o'tkazasiz.
 import time
 import asyncio
 import logging
+import datetime
 
 from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatMemberStatus
@@ -29,6 +30,52 @@ def _limit_for(user_id: int) -> int:
     invite_bonus = (invites // config.INVITES_PER_BONUS) * config.BONUS_MESSAGES
     paid_bonus = db.get_paid_bonus(user_id)
     return config.DAILY_MESSAGE_LIMIT + invite_bonus + paid_bonus
+
+
+def _seconds_until_midnight() -> int:
+    """Kecha yarimigacha (keyingi kunga o'tguncha) qolgan soniyalar soni -
+    limitdan oshgan foydalanuvchini aynan shu vaqtgacha cheklash uchun."""
+    now = datetime.datetime.now()
+    tomorrow = datetime.datetime.combine(now.date() + datetime.timedelta(days=1), datetime.time.min)
+    return max(60, int((tomorrow - now).total_seconds()))
+
+
+async def _restrict_writing(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int, until: int):
+    """Foydalanuvchining guruhda yozish huquqini olib qo'yadi (xuddi admin
+    qo'lda "Restrict" bosgandek) - 'until' vaqtigacha yoza olmaydi."""
+    try:
+        await context.bot.restrict_chat_member(
+            chat_id=chat_id,
+            user_id=user_id,
+            permissions=ChatPermissions(can_send_messages=False),
+            until_date=until,
+        )
+    except Exception:
+        logger.warning("Yozish huquqini olib bo'lmadi")
+
+
+async def _restore_writing(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int):
+    """Foydalanuvchiga guruhda yozish huquqini qaytaradi."""
+    try:
+        await context.bot.restrict_chat_member(
+            chat_id=chat_id,
+            user_id=user_id,
+            permissions=ChatPermissions(can_send_messages=True),
+        )
+    except Exception:
+        pass  # cheklanmagan bo'lishi yoki huquq yetarli bo'lmasligi mumkin
+
+
+async def _maybe_unrestrict(user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanuvchi yangi taklif/to'lov bilan limitini oshirgach, agar u
+    bugungi limitidan hali oshmagan bo'lsa, guruhda yozish huquqini darhol
+    qaytaradi (kecha yarmigacha kutish shart emas)."""
+    if not config.TARGET_GROUP_ID:
+        return
+    sent_today = db.get_message_count(user_id)
+    limit = _limit_for(user_id)
+    if sent_today < limit:
+        await _restore_writing(context, config.TARGET_GROUP_ID, user_id)
 
 
 async def _delete_after(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, delay: float = 4.0):
@@ -237,6 +284,7 @@ async def payment_decision_callback(update: Update, context: ContextTypes.DEFAUL
             await query.answer("Bu so'rov allaqachon ko'rib chiqilgan.", show_alert=True)
             return
         db.add_paid_bonus(payment["user_id"], config.PAYMENT_BONUS_MESSAGES)
+        await _maybe_unrestrict(payment["user_id"], context)
         await query.answer("Tasdiqlandi.")
         await query.edit_message_caption(
             caption=query.message.caption + "\n\n✅ TASDIQLANDI"
@@ -482,6 +530,7 @@ async def track_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if owner_id:
         db.add_invite(owner_id)
+        await _maybe_unrestrict(owner_id, context)
         total = db.get_invite_count(owner_id)
         name = await _display_name(owner_id, context)
         try:
@@ -552,12 +601,20 @@ async def moderate_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message.delete()
         except Exception:
             logger.warning("Xabarni o'chirib bo'lmadi")
+
+        # Guruhda yozish huquqini kecha yarmigacha (yoki ko'proq taklif/to'lov
+        # bilan limit oshguncha) olib qo'yamiz
+        until = int(time.time()) + _seconds_until_midnight()
+        await _restrict_writing(context, message.chat_id, user.id, until)
+
         try:
-            await context.bot.send_message(
+            sent = await context.bot.send_message(
                 message.chat_id,
-                f"{user.first_name}, bugungi kunlik limitingiz ({limit} ta xabar) tugadi.\n"
+                f"{user.first_name}, bugungi kunlik limitingiz ({limit} ta xabar) tugadi va "
+                f"yozish huquqingiz vaqtincha to'xtatildi.\n"
                 f"Ko'proq yozish uchun quyidagilardan birini tanlang:",
                 reply_markup=_limit_reached_keyboard(),
             )
+            asyncio.create_task(_delete_after(context, sent.chat_id, sent.message_id, delay=4.0))
         except Exception:
             pass

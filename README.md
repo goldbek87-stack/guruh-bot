@@ -7,8 +7,13 @@ Bu bot uy-joy oldi-sotdi/ijara guruhingiz uchun quyidagilarni avtomatik qiladi:
   ikkalasi ham hisoblanadi). `/mening_havolam` va `/statistikam` buyruqlariga javob
   guruhning o'zida chiqadi, lekin guruhda to'planib qolmasligi uchun 4 soniyadan
   keyin avtomatik o'chib ketadi.
-- Har bir a'zoning **kunlik yozgan xabarlar sonini** hisoblaydi va standart limit (5 ta/kun)dan
-  oshsa xabarni o'chiradi; har 10 ta taklif uchun +5 ta bonus limit qo'shiladi
+- Har bir a'zoning **kunlik yozgan xabarlar sonini** hisoblaydi va standart limit (1 ta/kun)dan
+  oshsa: xabarni o'chiradi, foydalanuvchini guruhda **yozishdan butunlay cheklaydi**
+  (admin qo'lda "Restrict" bosgandek - matn kiritish oynasi o'zi yopiladi) kecha
+  yarmigacha, va "ko'proq yozish uchun tanlang" degan xabarni 4 soniyadan keyin
+  o'chiradi. Har 10 ta taklif uchun +5 ta bonus limit qo'shiladi - taklif yoki
+  to'lov tasdiqlanishi bilan, agar limit endi yetarli bo'lsa, yozish huquqi kecha
+  yarmini kutmasdan darhol qaytariladi.
 - **Boshqa guruh/kanal va ijtimoiy tarmoq linklarini** (Instagram, YouTube, TikTok, Facebook, va h.k.)
   avtomatik o'chiradi, 3 marta takrorlansa foydalanuvchini 1 soatga cheklaydi (mute)
 - Limitdan oshgan foydalanuvchiga **"Do'st taklif qilish" yoki "To'lov qilish"** tugmalarini

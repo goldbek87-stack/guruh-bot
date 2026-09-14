@@ -11,7 +11,7 @@ ADMIN_IDS = [
 ]
 
 # Kuniga har bir oddiy a'zo yubora oladigan bepul xabarlar soni
-DAILY_MESSAGE_LIMIT = 5
+DAILY_MESSAGE_LIMIT = 1
 
 # Necha kishi taklif qilsa (guruhga qo'shsa), bonus limit qo'shiladi
 INVITES_PER_BONUS = 10
