@@ -3,6 +3,10 @@
 Bu bot uy-joy oldi-sotdi/ijara guruhingiz uchun quyidagilarni avtomatik qiladi:
 
 - Har bir a'zoning shaxsiy taklif havolasi orqali **necha kishi qo'shganini** hisoblaydi
+  (ham havola orqali o'zi kirgan, ham kimdir uni guruhga qo'lda qo'shgan holatlarning
+  ikkalasi ham hisoblanadi). `/mening_havolam` va `/statistikam` buyruqlari guruhda
+  yozilsa ham, javob har doim shaxsiy xabarga (DM) yuboriladi - guruhda faqat qisqa
+  "yubordim" degan xabar qoladi, boshqalarga chalkash ko'rinmaydi.
 - Har bir a'zoning **kunlik yozgan xabarlar sonini** hisoblaydi va standart limit (5 ta/kun)dan
   oshsa xabarni o'chiradi; har 10 ta taklif uchun +5 ta bonus limit qo'shiladi
 - **Boshqa guruh/kanal va ijtimoiy tarmoq linklarini** (Instagram, YouTube, TikTok, Facebook, va h.k.)

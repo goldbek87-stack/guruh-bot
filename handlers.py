@@ -72,6 +72,9 @@ async def _build_invite_text(chat, user, context) -> str:
 async def my_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat = update.effective_chat
+
+    # Guruhda foydalanilsa, havola/statistika hammaga ko'rinib qolmasligi uchun
+    # javobni doim shaxsiy xabarga (DM) yuboramiz (pastda).
     try:
         text = await _build_invite_text(chat, user, context)
     except Exception:
@@ -81,7 +84,19 @@ async def my_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "taklif qilish orqali havola yaratish' huquqi berilganini tekshiring."
         )
         return
-    await update.message.reply_text(text)
+
+    if chat.type == "private":
+        await update.message.reply_text(text)
+        return
+
+    try:
+        await context.bot.send_message(user.id, text)
+        await update.message.reply_text("Taklif havolangizni shaxsiy xabaringizga yubordim.")
+    except Exception:
+        await update.message.reply_text(
+            f"Iltimos, avval botga shaxsiy yozing: https://t.me/{context.bot.username} "
+            f"keyin /mening_havolam buyrug'ini qayta yuboring."
+        )
 
 
 def _payment_instructions() -> str:
@@ -368,14 +383,28 @@ async def staged_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    chat = update.effective_chat
     db.ensure_user(user.id, user.username)
     sent = db.get_message_count(user.id)
     invites = db.get_invite_count(user.id)
     limit = _limit_for(user.id)
-    await update.message.reply_text(
+    text = (
         f"Bugun yozgan xabarlaringiz: {sent}/{limit}\n"
         f"Taklif qilgan odamlaringiz: {invites}"
     )
+
+    if chat.type == "private":
+        await update.message.reply_text(text)
+        return
+
+    try:
+        await context.bot.send_message(user.id, text)
+        await update.message.reply_text("Statistikangizni shaxsiy xabaringizga yubordim.")
+    except Exception:
+        await update.message.reply_text(
+            f"Iltimos, avval botga shaxsiy yozing: https://t.me/{context.bot.username} "
+            f"keyin /statistikam buyrug'ini qayta yuboring."
+        )
 
 
 async def admin_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -419,17 +448,29 @@ async def track_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not joined:
         return
 
-    link_obj = cm.invite_link
-    if link_obj is None:
-        return  # oddiy (umumiy) link orqali kirgan - kim taklif qilganini bilib bo'lmaydi
+    new_member = cm.new_chat_member.user
+    performer = cm.from_user  # bu amalni bajargan odam
 
-    owner_id = db.get_owner_by_link(link_obj.invite_link)
+    owner_id = None
+
+    link_obj = cm.invite_link
+    if link_obj is not None:
+        # 1-holat: yangi a'zo bot yaratgan shaxsiy havola orqali o'zi kirdi
+        owner_id = db.get_owner_by_link(link_obj.invite_link)
+    elif performer and new_member and performer.id != new_member.id:
+        # 2-holat: hech qanday havolasiz, kimdir uni guruhga qo'lda qo'shdi -
+        # demak "performer" o'sha qo'shgan odam
+        db.ensure_user(performer.id, performer.username)
+        owner_id = performer.id
+    # 3-holat (owner_id hamon None): odam guruhni o'zi qidirib, hech kimning
+    # havolasi yoki yordamisiz kirgan - kimga hisoblashni bilib bo'lmaydi
+
     if owner_id:
         db.add_invite(owner_id)
         try:
             await context.bot.send_message(
                 owner_id,
-                "Sizning havolangiz orqali guruhga yangi a'zo qo'shildi. Rahmat!",
+                "Siz orqali guruhga yangi a'zo qo'shildi. Rahmat!",
             )
         except Exception:
             pass  # foydalanuvchi botni bloklagan bo'lishi mumkin
