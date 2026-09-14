@@ -31,6 +31,17 @@ def _limit_for(user_id: int) -> int:
     return config.DAILY_MESSAGE_LIMIT + invite_bonus + paid_bonus
 
 
+async def _delete_after(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, delay: float = 4.0):
+    """Berilgan xabarni bir necha soniyadan keyin o'chiradi - guruhda
+    "shaxsiy xabaringizga yubordim" kabi vaqtinchalik xabarlar to'planib
+    qolmasligi uchun ishlatiladi."""
+    await asyncio.sleep(delay)
+    try:
+        await context.bot.delete_message(chat_id, message_id)
+    except Exception:
+        pass  # xabar allaqachon o'chirilgan yoki huquq yetarli bo'lmasligi mumkin
+
+
 def _limit_reached_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔗 Do'st taklif qilish", callback_data="show_invite")],
@@ -73,8 +84,6 @@ async def my_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat = update.effective_chat
 
-    # Guruhda foydalanilsa, havola/statistika hammaga ko'rinib qolmasligi uchun
-    # javobni doim shaxsiy xabarga (DM) yuboramiz (pastda).
     try:
         text = await _build_invite_text(chat, user, context)
     except Exception:
@@ -85,18 +94,10 @@ async def my_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if chat.type == "private":
-        await update.message.reply_text(text)
-        return
-
-    try:
-        await context.bot.send_message(user.id, text)
-        await update.message.reply_text("Taklif havolangizni shaxsiy xabaringizga yubordim.")
-    except Exception:
-        await update.message.reply_text(
-            f"Iltimos, avval botga shaxsiy yozing: https://t.me/{context.bot.username} "
-            f"keyin /mening_havolam buyrug'ini qayta yuboring."
-        )
+    sent = await update.message.reply_text(text)
+    if chat.type != "private":
+        # Guruhda to'planib qolmasligi uchun bir necha soniyadan keyin o'chadi
+        asyncio.create_task(_delete_after(context, sent.chat_id, sent.message_id))
 
 
 def _payment_instructions() -> str:
@@ -116,9 +117,10 @@ async def pay_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         try:
             await context.bot.send_message(update.effective_user.id, _payment_instructions())
-            await update.message.reply_text(
+            sent = await update.message.reply_text(
                 "To'lov ma'lumotlarini shaxsiy xabaringizga yubordim."
             )
+            asyncio.create_task(_delete_after(context, sent.chat_id, sent.message_id))
         except Exception:
             await update.message.reply_text(
                 f"Iltimos, avval botga shaxsiy yozing: "
@@ -385,26 +387,17 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat = update.effective_chat
     db.ensure_user(user.id, user.username)
-    sent = db.get_message_count(user.id)
+    msg_count = db.get_message_count(user.id)
     invites = db.get_invite_count(user.id)
     limit = _limit_for(user.id)
     text = (
-        f"Bugun yozgan xabarlaringiz: {sent}/{limit}\n"
+        f"Bugun yozgan xabarlaringiz: {msg_count}/{limit}\n"
         f"Taklif qilgan odamlaringiz: {invites}"
     )
 
-    if chat.type == "private":
-        await update.message.reply_text(text)
-        return
-
-    try:
-        await context.bot.send_message(user.id, text)
-        await update.message.reply_text("Statistikangizni shaxsiy xabaringizga yubordim.")
-    except Exception:
-        await update.message.reply_text(
-            f"Iltimos, avval botga shaxsiy yozing: https://t.me/{context.bot.username} "
-            f"keyin /statistikam buyrug'ini qayta yuboring."
-        )
+    sent_msg = await update.message.reply_text(text)
+    if chat.type != "private":
+        asyncio.create_task(_delete_after(context, sent_msg.chat_id, sent_msg.message_id))
 
 
 async def admin_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
