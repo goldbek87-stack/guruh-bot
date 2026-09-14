@@ -85,6 +85,15 @@ def main():
         )
     )
 
+    # Telegramning o'zi chiqaradigan "qo'shildi" / "chiqarildi" tizim xabarlarini
+    # bir necha soniyadan keyin o'chirish (guruh ortiqcha to'lib ketmasligi uchun)
+    app.add_handler(
+        MessageHandler(
+            tg_filters.StatusUpdate.NEW_CHAT_MEMBERS | tg_filters.StatusUpdate.LEFT_CHAT_MEMBER,
+            handlers.delete_service_message,
+        )
+    )
+
     logging.info("Bot ishga tushdi...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

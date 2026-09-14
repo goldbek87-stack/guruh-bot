@@ -42,6 +42,18 @@ async def _delete_after(context: ContextTypes.DEFAULT_TYPE, chat_id: int, messag
         pass  # xabar allaqachon o'chirilgan yoki huquq yetarli bo'lmasligi mumkin
 
 
+async def _display_name(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> str:
+    """Foydalanuvchining ismini (yoki @username'ini) olishga harakat qiladi,
+    topilmasa "Foydalanuvchi" deb qaytaradi."""
+    try:
+        chat = await context.bot.get_chat(user_id)
+        if chat.username:
+            return f"@{chat.username}"
+        return chat.first_name or "Foydalanuvchi"
+    except Exception:
+        return "Foydalanuvchi"
+
+
 def _limit_reached_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔗 Do'st taklif qilish", callback_data="show_invite")],
@@ -427,6 +439,16 @@ async def admin_ranking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
 
 
+async def delete_service_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Telegramning o'zi chiqaradigan 'X guruhga qo'shildi' / 'X guruhdan
+    chiqarildi' degan tizim xabarlarini bir necha soniyadan keyin o'chiradi,
+    guruh ortiqcha xabarlar bilan to'lib ketmasligi uchun."""
+    message = update.effective_message
+    if message is None:
+        return
+    asyncio.create_task(_delete_after(context, message.chat_id, message.message_id, delay=5.0))
+
+
 async def track_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cm = update.chat_member
     if cm is None:
@@ -460,13 +482,16 @@ async def track_new_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if owner_id:
         db.add_invite(owner_id)
+        total = db.get_invite_count(owner_id)
+        name = await _display_name(owner_id, context)
         try:
-            await context.bot.send_message(
-                owner_id,
-                "Siz orqali guruhga yangi a'zo qo'shildi. Rahmat!",
+            sent = await context.bot.send_message(
+                cm.chat.id,
+                f"🎉 {name} orqali guruhga yangi a'zo qo'shildi! Jami: {total} kishi.",
             )
+            asyncio.create_task(_delete_after(context, sent.chat_id, sent.message_id, delay=4.0))
         except Exception:
-            pass  # foydalanuvchi botni bloklagan bo'lishi mumkin
+            pass
 
 
 async def moderate_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
